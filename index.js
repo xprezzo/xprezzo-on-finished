@@ -7,19 +7,11 @@
 'use strict'
 
 /**
- * Module exports.
- * @public
- */
-
-module.exports = onFinished
-module.exports.isFinished = isFinished
-
-/**
  * Module dependencies.
  * @private
  */
-
-var first = require('ee-first')
+const __queue__ = new WeakMap()
+const first = require('./lib/ee-first')
 
 /**
  * Variables.
@@ -27,31 +19,9 @@ var first = require('ee-first')
  */
 
 /* istanbul ignore next */
-var defer = typeof setImmediate === 'function'
+const defer = typeof setImmediate === 'function'
   ? setImmediate
   : function (fn) { process.nextTick(fn.bind.apply(fn, arguments)) }
-
-/**
- * Invoke callback when the response has finished, useful for
- * cleaning up resources afterwards.
- *
- * @param {object} msg
- * @param {function} listener
- * @return {object}
- * @public
- */
-
-function onFinished (msg, listener) {
-  if (isFinished(msg) !== false) {
-    defer(listener, null, msg)
-    return msg
-  }
-
-  // attach the listener to the message
-  attachListener(msg, listener)
-
-  return msg
-}
 
 /**
  * Determine if message is already finished.
@@ -62,7 +32,7 @@ function onFinished (msg, listener) {
  */
 
 function isFinished (msg) {
-  var socket = msg.socket
+  const socket = msg.socket
 
   if (typeof msg.finished === 'boolean') {
     // OutgoingMessage
@@ -87,9 +57,8 @@ function isFinished (msg) {
  */
 
 function attachFinishedListener (msg, callback) {
-  var eeMsg
-  var eeSocket
-  var finished = false
+  let eeSocket
+  let finished = false
 
   function onFinish (error) {
     eeMsg.cancel()
@@ -100,7 +69,7 @@ function attachFinishedListener (msg, callback) {
   }
 
   // finished on first message event
-  eeMsg = eeSocket = first([[msg, 'end', 'finish']], onFinish)
+  const eeMsg = eeSocket = first([[msg, 'end', 'finish']], onFinish)
 
   function onSocket (socket) {
     // remove listener
@@ -137,15 +106,16 @@ function attachFinishedListener (msg, callback) {
  */
 
 function attachListener (msg, listener) {
-  var attached = msg.__onFinished
+  let attached = msg.__onFinished
 
   // create a private single listener with queue
   if (!attached || !attached.queue) {
     attached = msg.__onFinished = createListener(msg)
     attachFinishedListener(msg, attached)
   }
-
-  attached.queue.push(listener)
+  const queue = __queue__.get(attached)
+  queue.push(listener)
+  __queue__.set(attached, queue)
 }
 
 /**
@@ -158,18 +128,16 @@ function attachListener (msg, listener) {
 
 function createListener (msg) {
   function listener (err) {
+    const queue = __queue__.get(listener)
     if (msg.__onFinished === listener) msg.__onFinished = null
-    if (!listener.queue) return
+    if (!queue) return
 
-    var queue = listener.queue
-    listener.queue = null
-
-    for (var i = 0; i < queue.length; i++) {
+    __queue__.set(listener, null)
+    for (let i = 0; i < queue.length; i++) {
       queue[i](err, msg)
     }
   }
-
-  listener.queue = []
+  __queue__.set(listener, [])
 
   return listener
 }
@@ -184,7 +152,7 @@ function createListener (msg) {
 
 // istanbul ignore next: node.js 0.8 patch
 function patchAssignSocket (res, callback) {
-  var assignSocket = res.assignSocket
+  const assignSocket = res.assignSocket
 
   if (typeof assignSocket !== 'function') return
 
@@ -194,3 +162,31 @@ function patchAssignSocket (res, callback) {
     callback(socket)
   }
 }
+
+/**
+ * Module exports.
+ * @public
+ */
+
+/**
+ * Invoke callback when the response has finished, useful for
+ * cleaning up resources afterwards.
+ *
+ * @param {object} msg
+ * @param {function} listener
+ * @return {object}
+ * @public
+ */
+module.exports = (msg, listener) => {
+  if (isFinished(msg) !== false) {
+    defer(listener, null, msg)
+    return msg
+  }
+
+  // attach the listener to the message
+  attachListener(msg, listener)
+
+  return msg
+}
+
+module.exports.isFinished = isFinished
