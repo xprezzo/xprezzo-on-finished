@@ -2,19 +2,6 @@
 
 Execute a callback when a HTTP request closes, finishes, or errors for xprezzo.
 
-## Philosophy of Xprezzo
-
-Problems faced:
-
- * Too many requires which creates problem when project grow
- * The dependencies update are slow
- * Test cases of difficult to design
-
-How Xprezzo try to tackle those problems:
-
- * Useful internal libraries/packages are exposed
- * Merge small libraries into a larger one.
- * Provide easy to use test framework
 
 ## Install
 
@@ -159,7 +146,7 @@ http.createServer(function onRequest (req, res) {
 
 ## People
 
-Xprezzo and related projects are maintained by [Ben Ajenoui](mailto:info@seohero.io) and sponsored by [SEO Hero](https://www.seohero.io).
+Xprezzo and related projects are maintained by [Cloudgen Wong](mailto:cloudgen.wong@gmail.com).
 
 ## License
 
